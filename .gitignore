@@ -1,0 +1,25 @@
+# Python 仮想環境
+.venv-pdf/
+
+# Node.js
+node_modules/
+opensearch-mcp/build/
+
+# macOS
+.DS_Store
+
+# Docker Compose バックアップ・作業ファイル
+docker-compose.yml.bak
+0docker-compose.yml
+
+# Bob IDE 生成ファイル
+.bob/
+
+# ローカル生成 HTML（スクリプト出力）
+*.html
+
+# サンプル PDF（機密資料の可能性あり・容量大）
+sample-data/documents/
+
+# sample-data/.bob
+sample-data/.bob/
