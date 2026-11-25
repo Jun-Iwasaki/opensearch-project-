@@ -14,27 +14,29 @@ H='Content-Type: application/json'
 MODEL_NAME="huggingface/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 MODEL_VERSION="1.0.1"
 
+# wait_task <task_id> <label>
+# stdout に model_id のみ出力する。進捗メッセージは stderr に出す。
 wait_task() {
   local task_id="$1"
   local label="$2"
-  echo -n "$label ..."
+  echo -n "$label ..." >&2
   for i in $(seq 1 60); do
     resp=$(curl -s "$OS/_plugins/_ml/tasks/$task_id")
     state=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('state',''))")
     if [ "$state" = "COMPLETED" ]; then
       model_id=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('model_id',''))")
-      echo " COMPLETED (model_id: $model_id)"
-      echo "$model_id"
+      echo " COMPLETED (model_id: $model_id)" >&2
+      echo "$model_id"   # stdout にのみ model_id を出力
       return 0
     elif [ "$state" = "FAILED" ]; then
-      echo " FAILED"
+      echo " FAILED" >&2
       echo "$resp" | python3 -m json.tool >&2
       exit 1
     fi
-    echo -n "."
+    echo -n "." >&2
     sleep 5
   done
-  echo " TIMEOUT"
+  echo " TIMEOUT" >&2
   exit 1
 }
 

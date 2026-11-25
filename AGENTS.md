@@ -49,3 +49,6 @@ This file provides guidance to agents when working with code in this repository.
 - モデル: `paraphrase-multilingual-MiniLM-L12-v2`（`setup_vector_search.sh` でデプロイ）
 - メモリ閾値を 99% に設定しないと 4GB VM でモデルがデプロイできない（`setup_vector_search.sh` の ML Commons クラスタ設定参照）
 - `MODEL_ID` は `setup_vector_search.sh` 完了時に表示される。`ingest_documents_knn.sh` の引数か `OPENSEARCH_MODEL_ID` 環境変数で渡す
+- **`setup_vector_search.sh` の `wait_task` は進捗メッセージを stderr、`model_id` のみ stdout に出す設計**。`$(wait_task ...)` のコマンド置換が stdout だけを取得するため、混在させると `MODEL_ID` が壊れてデプロイが失敗する
+- ML Commons の `.plugins-ml-model` インデックスにはモデルのウェイトデータ（チャンク）が格納される。モデル削除後もインデックスは残るため、ディスクを解放したい場合は `DELETE /.plugins-ml-model,.plugins-ml-task,.plugins-ml-model-group,.plugins-ml-config` で手動削除する（次回 `setup_vector_search.sh` 実行時に再作成される）
+- `ingest_documents_knn.sh` の MODEL_ID 自動検出は `_source.model_id` を優先する。`_id`（ドキュメント ID）はチャンク ID（例: `abc_2`）になる場合があるため使わない

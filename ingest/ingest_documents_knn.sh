@@ -31,6 +31,7 @@ if [ -z "$MODEL_ID" ]; then
   echo "MODEL_ID が未指定のため、デプロイ済みモデルを自動検出します..."
   model_resp=$(curl -s -XGET "$OS/_plugins/_ml/models/_search" -H "$H" -d '{
     "query": { "term": { "model_state": "DEPLOYED" } },
+    "_source": ["model_id"],
     "size": 1
   }')
   MODEL_ID=$(echo "$model_resp" | python3 -c "
@@ -40,7 +41,9 @@ hits = data.get('hits', {}).get('hits', [])
 if not hits:
     print('')
 else:
-    print(hits[0]['_id'])
+    # _id はチャンク ID になる場合があるため _source.model_id を優先する
+    src = hits[0].get('_source', {})
+    print(src.get('model_id') or hits[0]['_id'])
 " 2>/dev/null || true)
 
   if [ -z "$MODEL_ID" ]; then

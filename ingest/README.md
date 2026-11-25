@@ -200,6 +200,60 @@ done: 4 file(s)
 
 ---
 
+## `setup_vector_search.sh` — ML Commons モデルのデプロイ
+
+`ingest_documents_knn.sh` を実行する前に一度だけ実行するセットアップスクリプトです。
+`paraphrase-multilingual-MiniLM-L12-v2` を ML Commons に登録・デプロイします。
+
+### 実行方法
+
+```bash
+./ingest/setup_vector_search.sh
+```
+
+**環境変数**
+
+| 変数 | 既定値 | 説明 |
+|---|---|---|
+| `OS_URL` | `http://localhost:9200` | OpenSearch エンドポイント |
+
+### 処理ステップ
+
+| ステップ | 内容 |
+|---|---|
+| [1/3] ML Commons クラスタ設定 | `only_run_on_ml_node: false` / メモリ閾値 99% 等を permanent 設定 |
+| [2/3] モデル登録 | `_register` API でモデルをダウンロード登録。完了まで最大 5 分待機 |
+| [3/3] モデルデプロイ | `_deploy` API でモデルをメモリに展開。完了まで最大 5 分待機 |
+
+完了すると `MODEL_ID` が表示されます。次のステップでこの値を使います。
+
+```
+=== セットアップ完了 ===
+MODEL_ID: <表示された ID をコピー>
+
+次のステップ: 文書を ja-documents-knn インデックスへ登録する
+  ./ingest/ingest_documents_knn.sh [ディレクトリ] <MODEL_ID>
+```
+
+### 内部実装メモ（`wait_task` 関数）
+
+`wait_task` 関数は進捗メッセージを **stderr** に、`model_id` 値のみを **stdout** に出力します。
+`MODEL_ID=$(wait_task ...)` のコマンド置換が stdout だけを取得するため、
+進捗メッセージを stdout に混在させると `MODEL_ID` が壊れてデプロイが失敗します。
+この関数を改変する際は必ず `>&2` を維持してください。
+
+### トラブルシューティング
+
+| 症状 | 原因と対処 |
+|---|---|
+| `[2/3]` で止まったまま進まない | モデルのダウンロードに数分かかる。最大 5 分（60回 × 5秒）待機する |
+| `[3/3]` が表示されず終了する | `wait_task` の stdout 汚染でデプロイ API の URL が壊れた可能性。スクリプトを再実行する |
+| `FAILED` が表示される | ML Commons の設定（ステップ 1）が反映されていない。再実行する |
+| セットアップ後に `ingest_documents_knn.sh` が「モデルが見つからない」と言う | デプロイが完了していない。`curl localhost:9200/_plugins/_ml/models/<MODEL_ID>` で `model_state` が `DEPLOYED` になっているか確認する |
+| `.plugins-ml-model` が大量のディスクを使っている | モデルのウェイトデータ（約 670MB）が格納されている。不要なら `DELETE /.plugins-ml-model,.plugins-ml-task,.plugins-ml-model-group,.plugins-ml-config` で削除可能（次回 `setup_vector_search.sh` で再作成される） |
+
+---
+
 ## `ingest_documents_knn.sh` — 文書登録（ベクトル検索対応版）
 
 BM25 版と同じ文書を `ja-documents-knn` インデックスへ登録し、
@@ -217,6 +271,12 @@ BM25 版と同じ文書を `ja-documents-knn` インデックスへ登録し、
 | `MODEL_ID` | 環境変数 `OPENSEARCH_MODEL_ID` / 自動検出 | 埋め込みモデルの ID |
 
 **前提条件**: `setup_vector_search.sh` でモデルがデプロイ済みであること（`paraphrase-multilingual-MiniLM-L12-v2` 相当）。
+
+### MODEL_ID の解決順序
+
+1. 第 2 引数 `[MODEL_ID]`
+2. 環境変数 `OPENSEARCH_MODEL_ID`
+3. ML Commons に問い合わせて `DEPLOYED` 状態のモデルを自動検出（`_source.model_id` フィールドを優先。`_id` はチャンク ID になる場合があるため使わない）
 
 ### BM25 版との主な違い
 
