@@ -1,4 +1,4 @@
-# sample-data — サンプルデータ登録スクリプト
+# ingest — 文書登録スクリプト
 
 ローカル OpenSearch への日本語サンプルデータ登録に使うスクリプト群です。
 
@@ -54,10 +54,10 @@ export OS_URL=http://localhost:9200   # 既定値のため省略可
 
 ```bash
 # サンプルファイル（documents/ ディレクトリ）を登録する場合（引数省略で既定値を使用）
-./sample-data/ingest_documents.sh
+./ingest/ingest_documents.sh
 
 # 任意のディレクトリを指定する場合
-./sample-data/ingest_documents.sh /path/to/your/documents
+./ingest/ingest_documents.sh /path/to/your/documents
 ```
 
 スクリプトは内部で以下を自動実行します（再実行しても安全）。
@@ -147,12 +147,12 @@ curl -s localhost:9200/ja-documents/_search \
 
 ```bash
 # リポジトリルートから実行
-./sample-data/ingest_documents.sh [ディレクトリ]
+./ingest/ingest_documents.sh [ディレクトリ]
 ```
 
 | 引数 | 既定値 | 説明 |
 |---|---|---|
-| `ディレクトリ` | `sample-data/documents/` | 登録対象ファイルが入ったディレクトリ |
+| `ディレクトリ` | `ingest/documents/` | 登録対象ファイルが入ったディレクトリ |
 
 **環境変数**
 
@@ -208,12 +208,12 @@ BM25 版と同じ文書を `ja-documents-knn` インデックスへ登録し、
 ### 実行方法
 
 ```bash
-./sample-data/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
+./ingest/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
 ```
 
 | 引数 | 既定値 | 説明 |
 |---|---|---|
-| `ディレクトリ` | `sample-data/documents/` | 登録対象ファイルが入ったディレクトリ |
+| `ディレクトリ` | `ingest/documents/` | 登録対象ファイルが入ったディレクトリ |
 | `MODEL_ID` | 環境変数 `OPENSEARCH_MODEL_ID` / 自動検出 | 埋め込みモデルの ID |
 
 **前提条件**: `setup_vector_search.sh` でモデルがデプロイ済みであること（`paraphrase-multilingual-MiniLM-L12-v2` 相当）。
@@ -239,7 +239,7 @@ BM25 版と同じ文書を `ja-documents-knn` インデックスへ登録し、
 `documents/` ディレクトリに日本語サンプルファイルを生成するスクリプトです。
 
 ```bash
-.venv-pdf/bin/python sample-data/make_samples.py
+.venv-pdf/bin/python ingest/make_samples.py
 ```
 
 **依存ライブラリ**（`.venv-pdf` 仮想環境に収録; git 管理外）
@@ -276,8 +276,8 @@ OpenSearch 版は非対応で指定すると 400 エラーになります。
 ### `ja_analyzer` の定義が重複している
 `ja_analyzer`（kuromoji）の定義は以下の 2 か所に重複しています。変更時は**両方**を更新してください。
 
-- `sample-data/ingest_documents.sh`（`ja-documents` 用）
-- `sample-data/ingest_documents_knn.sh`（`ja-documents-knn` 用）
+- `ingest/ingest_documents.sh`（`ja-documents` 用）
+- `ingest/ingest_documents_knn.sh`（`ja-documents-knn` 用）
 
 ### インデックスは毎回 DELETE して再作成される
 `ingest_documents.sh` および `ingest_documents_knn.sh` はべき等な再実行のために

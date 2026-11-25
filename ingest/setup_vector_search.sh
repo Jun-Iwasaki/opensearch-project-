@@ -2,11 +2,11 @@
 # Neural Search (ML Commons) モデルセットアップスクリプト
 # paraphrase-multilingual-MiniLM-L12-v2 を登録・デプロイする。
 #
-# 使い方: ./sample-data/setup_vector_search.sh
+# 使い方: ./ingest/setup_vector_search.sh
 #
 # 完了後、MODEL_ID が表示される。
 # 文書の登録は ingest_documents_knn.sh を使う。
-#   ./sample-data/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
+#   ./ingest/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
 set -euo pipefail
 
 OS=${OS_URL:-http://localhost:9200}
@@ -72,7 +72,7 @@ echo "=== セットアップ完了 ==="
 echo "MODEL_ID: $MODEL_ID"
 echo ""
 echo "次のステップ: 文書を ja-documents-knn インデックスへ登録する"
-echo "  ./sample-data/ingest_documents_knn.sh [ディレクトリ] $MODEL_ID"
+echo "  ./ingest/ingest_documents_knn.sh [ディレクトリ] $MODEL_ID"
 echo ""
 echo "Neural Search 例（MCP ツール）:"
 echo "  mcp__opensearch-readonly__neural_search"

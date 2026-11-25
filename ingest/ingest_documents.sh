@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PDF / Office 文書を ingest-attachment 経由で ja-documents インデックスに登録する。
-# 使い方: ./sample-data/ingest_documents.sh [ディレクトリ(既定: sample-data/documents)]
+# 使い方: ./ingest/ingest_documents.sh [ディレクトリ(既定: ingest/documents)]
 # 対象拡張子: pdf pptx docx xlsx (ppt doc xls も可)
 set -euo pipefail
 

@@ -229,3 +229,28 @@ Neural Search プラグインの `normalization-processor` でスコアを統合
 ### 本文の切り詰め
 
 PDF や Office ドキュメントの全文などを切り詰める `truncate()` 関数は、`MAX_CONTENT_CHARS=2000` を上限に動作します。上限を変更する場合は `src/index.ts` の定数を修正して再ビルドしてください。
+
+---
+
+## 関連情報
+
+### Qiita 記事
+
+| 記事 | 内容 |
+|---|---|
+| [PodmanでOpenSearchを構築してkuromojiで日本語全文検索を試す](https://qiita.com/Jungobu/items/56b579941d7e78b54c20) | 本 MCP サーバーが接続する OpenSearch 環境の構築手順（前編）|
+| Podman上のOpenSearchにPDF・Office文書を取り込み、日本語全文検索する（続編） | `ingest-attachment` / `analysis-kuromoji` を使ったインデックス登録手順 |
+
+### GitHub リポジトリ
+
+| ファイル | 説明 |
+|---|---|
+| [ingest/ingest_documents.sh](https://github.com/Jun-Iwasaki/opensearch-project-/blob/main/ingest/ingest_documents.sh) | PDF・Office 文書を `ja-documents` インデックスへ登録するスクリプト |
+
+### 関連ツール・プロダクト
+
+| ツール | 説明 |
+|---|---|
+| [IBM Bob](https://www.ibm.com/products/bob) | 本プロジェクトのスクリプト開発・デバッグに利用した IBM 社内 AI コーディングアシスタント |
+| [Apache Tika](https://tika.apache.org/) | `ingest-attachment` プラグインが内部で利用するドキュメント本文抽出ライブラリ |
+| [OpenSearch analysis-kuromoji](https://opensearch.org/docs/latest/analyzers/language-analyzers/) | 日本語形態素解析プラグイン（`ja_analyzer` の実体）|

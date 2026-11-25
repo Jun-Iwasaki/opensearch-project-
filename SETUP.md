@@ -434,11 +434,11 @@ BM25 に加えてセマンティック検索（意味的な類似度検索）を
 
 ```bash
 # ML Commons モデルのデプロイ（初回のみ。数分かかる）
-./sample-data/setup_vector_search.sh
+./ingest/setup_vector_search.sh
 # → 完了時に MODEL_ID が表示される
 
 # ja-documents-knn インデックスへ登録
-./sample-data/ingest_documents_knn.sh sample-data/documents/ <MODEL_ID>
+./ingest/ingest_documents_knn.sh ingest/documents/ <MODEL_ID>
 ```
 
 ## Step 7: 検索 Web アプリの起動（任意）

@@ -10,16 +10,16 @@ This file provides guidance to agents when working with code in this repository.
 
 ```bash
 # サンプル文書を documents/ に生成（仮想環境は .venv-pdf を使う）
-.venv-pdf/bin/python sample-data/make_samples.py
+.venv-pdf/bin/python ingest/make_samples.py
 
 # BM25 用インデックスに登録（リポジトリルートから実行）
-./sample-data/ingest_documents.sh [ディレクトリ]
+./ingest/ingest_documents.sh [ディレクトリ]
 
 # ベクトル検索用インデックスに登録（setup_vector_search.sh を先に実行必須）
-./sample-data/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
+./ingest/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
 
 # ML Commons モデルのデプロイ（ingest_documents_knn.sh の前提）
-./sample-data/setup_vector_search.sh
+./ingest/setup_vector_search.sh
 ```
 
 **環境変数**

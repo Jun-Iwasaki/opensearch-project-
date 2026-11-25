@@ -18,8 +18,8 @@ docker-compose.yml.bak
 # ローカル生成 HTML（スクリプト出力）
 *.html
 
-# サンプル PDF（機密資料の可能性あり・容量大）
-sample-data/documents/
+# 登録対象文書ファイル（機密資料の可能性あり・容量大）
+ingest/documents/
 
-# sample-data/.bob
-sample-data/.bob/
+# ingest/.bob
+ingest/.bob/

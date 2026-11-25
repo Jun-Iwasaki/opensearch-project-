@@ -3,9 +3,9 @@
 # ja-documents-knn インデックスに登録する（ベクトル検索対応版）。
 #
 # 使い方:
-#   ./sample-data/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
+#   ./ingest/ingest_documents_knn.sh [ディレクトリ] [MODEL_ID]
 #
-#   ディレクトリ: 既定 sample-data/documents/
+#   ディレクトリ: 既定 ingest/documents/
 #   MODEL_ID    : 既定 環境変数 OPENSEARCH_MODEL_ID。
 #                 未指定の場合は ML Commons からデプロイ済みモデルを自動検出する。
 #
