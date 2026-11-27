@@ -230,6 +230,11 @@ server.registerTool(
     }),
 );
 
+/** nested_path 指定時は nested クエリで包み、最もよく一致したチャンクのスコアを文書スコアにする */
+function wrapNested(query: Record<string, unknown>, nestedPath?: string): Record<string, unknown> {
+  return nestedPath ? { nested: { path: nestedPath, score_mode: "max", query } } : query;
+}
+
 server.registerTool(
   "neural_search",
   {
@@ -238,15 +243,16 @@ server.registerTool(
       "knn_vector フィールドに対して類似度検索を行う。事前に ML Commons モデルがデプロイ済みであること。",
     inputSchema: z.object({
       index: z.string().describe("検索対象のインデックス名（例: ja-documents-knn）"),
-      query_text: z.string().describe("自然言語のクエリテキスト。モデルがベクトル化する"),
+      query_text: z.string().describe("自然言語のクエリテキスト。モデルがベクトル化する。Granite Embedding はプレフィックス不要（ruri-v3 など用途別プレフィックスを要するモデルでは「検索クエリ: 」を付ける）"),
       model_id: z.string().describe("デプロイ済み ML Commons モデルの ID"),
-      vector_field: z.string().describe("knn_vector 型のフィールド名（例: content_embedding）"),
+      vector_field: z.string().describe("knn_vector 型のフィールド名（例: chunks_embedding.knn）"),
+      nested_path: z.string().optional().describe("vector_field が nested フィールド配下（チャンク分割した chunks_embedding.knn など）の場合の nested パス。例: chunks_embedding。文書単位のスコアは最もよく一致したチャンクの値になる"),
       k: z.number().int().min(1).max(100).optional().describe("返す近傍ドキュメント数（既定: 5）"),
       source: z.array(z.string()).optional().describe("返すフィールドを限定する。例: [\"title\",\"category\"]"),
       filter: z.record(z.string(), z.unknown()).optional().describe("ベクトル検索に重ねる絞り込みフィルタ（Query DSL）"),
     }),
   },
-  async ({ index, query_text, model_id, vector_field, k, source, filter }) =>
+  async ({ index, query_text, model_id, vector_field, nested_path, k, source, filter }) =>
     run(async () => {
       const neural: Record<string, unknown> = {
         query_text,
@@ -255,7 +261,7 @@ server.registerTool(
       };
       if (filter) neural.filter = filter;
       const body: Record<string, unknown> = {
-        query: { neural: { [vector_field]: neural } },
+        query: wrapNested({ neural: { [vector_field]: neural } }, nested_path),
         size: k ?? 5,
       };
       if (source) body._source = source;
@@ -287,9 +293,10 @@ server.registerTool(
       index: z.string().describe("検索対象のインデックス名（例: ja-documents-knn）"),
       keyword_query: z.string().describe("BM25 全文検索のキーワード"),
       keyword_field: z.string().describe("BM25 で検索するフィールド名（例: content）"),
-      neural_query_text: z.string().describe("ベクトル検索のクエリテキスト（英語でも可）"),
+      neural_query_text: z.string().describe("ベクトル検索のクエリテキスト。Granite Embedding はプレフィックス不要（ruri-v3 など用途別プレフィックスを要するモデルでは「検索クエリ: 」を付ける）"),
       model_id: z.string().describe("デプロイ済み ML Commons モデルの ID"),
-      vector_field: z.string().describe("knn_vector 型のフィールド名（例: content_embedding）"),
+      vector_field: z.string().describe("knn_vector 型のフィールド名（例: chunks_embedding.knn）"),
+      nested_path: z.string().optional().describe("vector_field が nested フィールド配下（チャンク分割した chunks_embedding.knn など）の場合の nested パス。例: chunks_embedding。文書単位のスコアは最もよく一致したチャンクの値になる"),
       k: z.number().int().min(1).max(100).optional().describe("ベクトル検索の近傍数（既定: 5）"),
       keyword_weight: z.number().min(0).max(1).optional().describe("BM25 の重み（0〜1、既定: 0.4）"),
       neural_weight: z.number().min(0).max(1).optional().describe("ベクトル検索の重み（0〜1、既定: 0.6）"),
@@ -297,7 +304,7 @@ server.registerTool(
       source: z.array(z.string()).optional().describe("返すフィールドを限定する。例: [\"title\",\"category\"]"),
     }),
   },
-  async ({ index, keyword_query, keyword_field, neural_query_text, model_id, vector_field, k, keyword_weight, neural_weight, size, source }) =>
+  async ({ index, keyword_query, keyword_field, neural_query_text, model_id, vector_field, nested_path, k, keyword_weight, neural_weight, size, source }) =>
     run(async () => {
       const kw = keyword_weight ?? 0.4;
       const nw = neural_weight ?? 0.6;
@@ -307,7 +314,7 @@ server.registerTool(
           hybrid: {
             queries: [
               { match: { [keyword_field]: { query: keyword_query } } },
-              { neural: { [vector_field]: { query_text: neural_query_text, model_id, k: k ?? 5 } } },
+              wrapNested({ neural: { [vector_field]: { query_text: neural_query_text, model_id, k: k ?? 5 } } }, nested_path),
             ],
           },
         },

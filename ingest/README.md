@@ -203,7 +203,14 @@ done: 4 file(s)
 ## `setup_vector_search.sh` — ML Commons モデルのデプロイ
 
 `ingest_documents_knn.sh` を実行する前に一度だけ実行するセットアップスクリプトです。
-`paraphrase-multilingual-MiniLM-L12-v2` を ML Commons に登録・デプロイします。
+IBM の多言語埋め込みモデル [`ibm-granite/granite-embedding-107m-multilingual`](https://huggingface.co/ibm-granite/granite-embedding-107m-multilingual)（384 次元・日本語を含む 12 言語対応・Apache 2.0）を、
+ONNX(fp32) のカスタムモデルとして ML Commons に登録・デプロイします。
+
+> **前提**: Podman VM のメモリは **4GB** で動作します（実測。デプロイ・登録とも OOM なし）。
+> ダウンロード（約 428MB）のためインターネット接続が必要です。
+>
+> ONNX は IBM 公式リポジトリの `model.onnx`（fp32）を使い、SHA-256 を検証します。
+> 出力は `logits`（トークンごとの 384 次元）なので、ML Commons 側で `pooling_mode: CLS` / `normalize_result: true` を指定します。
 
 ### 実行方法
 
@@ -216,14 +223,19 @@ done: 4 file(s)
 | 変数 | 既定値 | 説明 |
 |---|---|---|
 | `OS_URL` | `http://localhost:9200` | OpenSearch エンドポイント |
+| `MODEL_HOST` | `host.containers.internal` | OpenSearch コンテナから見たホストのアドレス |
+| `MODEL_PORT` | `8765` | モデル配信用の一時 HTTP サーバーのポート |
+| `WORK_DIR` | `ingest/.model-cache` | ダウンロードした ONNX・zip の保存先（約 250MB。`.gitignore` 済み） |
 
 ### 処理ステップ
 
 | ステップ | 内容 |
 |---|---|
-| [1/3] ML Commons クラスタ設定 | `only_run_on_ml_node: false` / メモリ閾値 99% 等を permanent 設定 |
-| [2/3] モデル登録 | `_register` API でモデルをダウンロード登録。完了まで最大 5 分待機 |
-| [3/3] モデルデプロイ | `_deploy` API でモデルをメモリに展開。完了まで最大 5 分待機 |
+| [1/5] ML Commons クラスタ設定 | `only_run_on_ml_node: false` / メモリ閾値 99% 等を permanent 設定 |
+| [2/5] モデル取得 | Hugging Face から ONNX と `tokenizer.json` を取得し、SHA-256 を検証して zip 化 |
+| [3/5] 一時 HTTP サーバー起動 | ML Commons は URL からしか登録できないため、ホスト上で zip を配信（終了時に自動停止） |
+| [4/5] モデル登録 | モデルグループ作成 → `_register`（`pooling_mode: none`、`space_type: cosinesimil`）。完了まで最大 10 分待機 |
+| [5/5] モデルデプロイ | `_deploy` API でモデルをメモリに展開。完了まで最大 10 分待機 |
 
 完了すると `MODEL_ID` が表示されます。次のステップでこの値を使います。
 
@@ -246,11 +258,14 @@ MODEL_ID: <表示された ID をコピー>
 
 | 症状 | 原因と対処 |
 |---|---|
-| `[2/3]` で止まったまま進まない | モデルのダウンロードに数分かかる。最大 5 分（60回 × 5秒）待機する |
-| `[3/3]` が表示されず終了する | `wait_task` の stdout 汚染でデプロイ API の URL が壊れた可能性。スクリプトを再実行する |
+| `[4/5]` で `Connection refused` の `FAILED` | コンテナからホストの一時 HTTP サーバーに届いていない。`MODEL_HOST` を確認する（Podman なら `host.containers.internal`）。`podman exec opensearch-node1 curl -r 0-9 http://host.containers.internal:8765/granite-embedding-107m-onnx.zip` で疎通を確認する |
+| `[5/5]` の途中で OpenSearch が落ちる（`podman ps` が `Exited (137)`） | Podman VM のメモリ不足。4GB 未満なら 4GB 以上に増設する。再起動後に `DEPLOY_FAILED` のモデルが残るので、スクリプトを再実行する |
+| `podman` が `connection refused` / gvproxy が `address already in use` | `rm -f $TMPDIR/podman/*.sock` のあと `podman machine stop && podman machine start` |
+| `SHA-256 が一致しません` | ダウンロードが壊れている。`ingest/.model-cache/pkg-granite/granite-embedding-107m.onnx` を削除して再実行する |
+| `[4/5]` `[5/5]` で止まったまま進まない | 最大 10 分（120回 × 5秒）待機する |
 | `FAILED` が表示される | ML Commons の設定（ステップ 1）が反映されていない。再実行する |
 | セットアップ後に `ingest_documents_knn.sh` が「モデルが見つからない」と言う | デプロイが完了していない。`curl localhost:9200/_plugins/_ml/models/<MODEL_ID>` で `model_state` が `DEPLOYED` になっているか確認する |
-| `.plugins-ml-model` が大量のディスクを使っている | モデルのウェイトデータ（約 670MB）が格納されている。不要なら `DELETE /.plugins-ml-model,.plugins-ml-task,.plugins-ml-model-group,.plugins-ml-config` で削除可能（次回 `setup_vector_search.sh` で再作成される） |
+| `.plugins-ml-model` が大量のディスクを使っている | モデルのウェイトデータ（約 130MB）が格納されている。不要なら `DELETE /.plugins-ml-model,.plugins-ml-task,.plugins-ml-model-group,.plugins-ml-config` で削除可能（次回 `setup_vector_search.sh` で再作成される） |
 
 ---
 
@@ -270,13 +285,17 @@ BM25 版と同じ文書を `ja-documents-knn` インデックスへ登録し、
 | `ディレクトリ` | `ingest/documents/` | 登録対象ファイルが入ったディレクトリ |
 | `MODEL_ID` | 環境変数 `OPENSEARCH_MODEL_ID` / 自動検出 | 埋め込みモデルの ID |
 
-**前提条件**: `setup_vector_search.sh` でモデルがデプロイ済みであること（`paraphrase-multilingual-MiniLM-L12-v2` 相当）。
+**前提条件**: `setup_vector_search.sh` でモデルがデプロイ済みであること（Granite Embedding 107M Multilingual、384 次元）。
 
 ### MODEL_ID の解決順序
 
 1. 第 2 引数 `[MODEL_ID]`
 2. 環境変数 `OPENSEARCH_MODEL_ID`
 3. ML Commons に問い合わせて `DEPLOYED` 状態のモデルを自動検出（`_source.model_id` フィールドを優先。`_id` はチャンク ID になる場合があるため使わない）
+
+> **注意**: 自動検出は `DEPLOYED` のモデルを **先頭 1 件** 取るだけです。MiniLM など別モデルが残っていると
+> 次元の違うモデルを拾い、`dimension` 不一致で登録に失敗します。複数モデルがある場合は第 2 引数で `MODEL_ID` を明示するか、
+> 不要なモデルを `_undeploy` → `DELETE` してください。
 
 ### BM25 版との主な違い
 
@@ -285,12 +304,31 @@ BM25 版と同じ文書を `ja-documents-knn` インデックスへ登録し、
 | インデックス名 | `ja-documents` | `ja-documents-knn` |
 | パイプライン名 | `doc-attachment` | `doc-attachment-knn` |
 | knn 設定 | なし | `index.knn: true`, `knn_vector` フィールド追加 |
-| ベクトルフィールド | なし | `content_embedding`（次元: 384, HNSW/Lucene） |
-| 追加プロセッサ | なし | `script`（一時フィールドコピー）+ `text_embedding` |
+| ベクトルフィールド | なし | `chunks_embedding`（nested）配下の `knn`（次元: 384, HNSW/Lucene, `cosinesimil`） |
+| 追加プロセッサ | なし | `script` + `text_chunking`（`fixed_char_length`）+ `text_embedding` |
 
-> **注意**: `text_embedding` プロセッサはドット記法のネストフィールド
+> **注意**: `text_chunking` / `text_embedding` プロセッサはドット記法のネストフィールド
 > （`attachment.content`）を直接参照できないため、スクリプトプロセッサで
-> 一旦 `_content_tmp` にコピーしてからベクトル化し、登録後に削除しています。
+> 一旦 `_content_tmp` にコピーしてから処理し、登録後に削除しています。
+
+### チャンク分割
+
+Granite の最大入力は 512 トークン（`max_position_embeddings=514`）のため、本文を `text_chunking` で分割し、
+**チャンクごとにベクトル化**して `chunks_embedding`（`nested`）に保存します。1 文書 = 1 ドキュメントのままで、
+ベクトルだけがチャンク数ぶん配列で入ります。
+
+| 環境変数 | 既定 | 説明 |
+|---|---|---|
+| `CHUNK_CHAR_LIMIT` | `500` | 1 チャンクの文字数 |
+| `CHUNK_OVERLAP` | `0.1` | チャンク間の重複率 |
+
+- アルゴリズムは `fixed_char_length`。`fixed_token_length` は `standard` 等の空白区切りトークナイザーしか選べず、
+  日本語では 1 チャンクが 1,000 トークン超になる（URL が多い文書など）ため使わない
+- 手元の 16 PDF（823 チャンク）では、500 文字のチャンクは最大 336 トークン・平均約 157 トークンで、512 を超えるものはなかった
+- チャンクのテキスト（`chunks`）は `index: false` で保持するだけ。ハイライト用途に使える
+- 検索は `nested` クエリで包み、`score_mode: max`（最もよく一致したチャンクの値が文書スコア）を使う。
+  MCP の `neural_search` / `hybrid_search` は `vector_field: chunks_embedding.knn` と `nested_path: chunks_embedding` を指定する
+- チャンク数が多い文書は登録に時間がかかる（16 PDF で約 31 秒）
 
 ---
 

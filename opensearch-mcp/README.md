@@ -168,8 +168,9 @@ Neural Search（ベクトル検索）を実行する。
 | `index` | string | ✓ | 検索対象インデックス名（例: `ja-documents-knn`）|
 | `query_text` | string | ✓ | 自然言語クエリテキスト |
 | `model_id` | string | ✓ | デプロイ済み ML Commons モデルの ID |
-| `vector_field` | string | ✓ | `knn_vector` 型のフィールド名（例: `content_embedding`）|
-| `k` | integer | - | 返す近傍ドキュメント数（既定: 5）|
+| `vector_field` | string | ✓ | `knn_vector` 型のフィールド名（例: `chunks_embedding.knn`）|
+| `nested_path` | string | - | `vector_field` が nested 配下の場合の nested パス（例: `chunks_embedding`）。文書スコアは最も一致したチャンクの値 |
+| `k` | integer | - | 返す近傍数（既定: 5）。nested の場合はチャンク単位 |
 | `source` | string[] | - | 返すフィールドを限定 |
 | `filter` | object | - | 絞り込みフィルタ（Query DSL）|
 
@@ -188,6 +189,7 @@ Neural Search プラグインの `normalization-processor` でスコアを統合
 | `neural_query_text` | string | ✓ | ベクトル検索のクエリテキスト |
 | `model_id` | string | ✓ | デプロイ済み ML Commons モデルの ID |
 | `vector_field` | string | ✓ | `knn_vector` 型のフィールド名 |
+| `nested_path` | string | - | `vector_field` が nested 配下の場合の nested パス（例: `chunks_embedding`）|
 | `k` | integer | - | ベクトル検索の近傍数（既定: 5）|
 | `keyword_weight` | number | - | BM25 の重み（0〜1、既定: 0.4）|
 | `neural_weight` | number | - | ベクトル検索の重み（0〜1、既定: 0.6）|

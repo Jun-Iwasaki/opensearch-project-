@@ -48,8 +48,8 @@ reportlab で PDF を生成する際、TTF を埋め込まないと Tika が `fo
 ```
 make_samples.py         → documents/*.pdf / *.pptx
 ingest_documents.sh     → ja-documents (BM25, kuromoji)
-ingest_documents_knn.sh → ja-documents-knn (knn_vector dim=384, HNSW/Lucene)
-setup_vector_search.sh  → paraphrase-multilingual-MiniLM-L12-v2 をデプロイ
+ingest_documents_knn.sh → ja-documents-knn (knn_vector dim=384, HNSW/Lucene, cosinesimil)
+setup_vector_search.sh  → granite-embedding-107m-multilingual (ONNX fp32) をデプロイ
 ```
 
 ## Index Schemas
@@ -59,6 +59,7 @@ setup_vector_search.sh  → paraphrase-multilingual-MiniLM-L12-v2 をデプロ�
 | `filename` | keyword | keyword |
 | `attachment.content` | text (ja_analyzer) | text (ja_analyzer) |
 | `attachment.title` | text (ja_analyzer) | text (ja_analyzer) |
-| `content_embedding` | — | knn_vector (dim=384) |
+| `chunks` | — | text（`index: false`、チャンク本文） |
+| `chunks_embedding.knn` | — | nested 配下の knn_vector (dim=384) |
 
 ドキュメント ID はファイル名を URL パーセントエンコードしたもの（`python3 -c 'urllib.parse.quote(...)'`）。

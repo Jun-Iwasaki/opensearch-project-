@@ -23,3 +23,6 @@ ingest/documents/
 
 # ingest/.bob
 ingest/.bob/
+
+# 埋め込みモデルのダウンロードキャッシュ（setup_vector_search.sh が作成・約 650MB 以上）
+ingest/.model-cache/

@@ -13,7 +13,7 @@
 #   - OpenSearch が localhost:9200 で起動していること
 #   - analysis-kuromoji プラグインが有効であること
 #   - ingest-attachment プラグインが有効であること
-#   - paraphrase-multilingual-MiniLM-L12-v2 相当のモデルがデプロイ済みであること
+#   - Granite Embedding 107M Multilingual（384 次元）がデプロイ済みであること
 #     （未デプロイの場合は setup_vector_search.sh を先に実行する）
 #
 # 対象拡張子: pdf pptx ppt docx doc xlsx xls
@@ -56,14 +56,24 @@ else:
 fi
 
 # ---- 1. 取り込みパイプライン作成 -----------------------------------------------
+# Granite Embedding は用途別のプレフィックスを必要としない（文書・クエリとも素のテキストを渡す）。
+#
+# モデルの最大入力は 512 トークン（max_position_embeddings=514）。それを超える分は切り捨てられるため、
+# 本文を text_chunking で分割し、チャンクごとにベクトル化する（chunks_embedding）。
+#   CHUNK_CHAR_LIMIT: 1 チャンクの文字数（既定 500）。
+#   CHUNK_OVERLAP: チャンク間の重複率（既定 0.1）
+#
 # attachment: Base64 → テキスト抽出
-# text_embedding: attachment.content → content_embedding（ベクトル）
-# remove: Base64 の生データを削除
+# script: attachment.content を _content_tmp にコピー（text_chunking もドット記法を解釈できない）
+# text_chunking: _content_tmp → chunks（文字数ベースで分割。日本語は空白区切りでないので
+#   fixed_token_length の standard トークナイザーではなく fixed_char_length を使う）
+# text_embedding: chunks → chunks_embedding（[{knn:[...]}, ...] のネスト配列）
+# remove: Base64 の生データと一時フィールドを削除
 echo "=== [1/4] Ingest Pipeline 作成 ==="
-# text_embedding プロセッサはネストフィールド（attachment.content）のドット記法を
-# 解釈できないため、set で一旦トップレベルにコピーしてからベクトル化し、後で削除する。
+CHUNK_CHAR_LIMIT=${CHUNK_CHAR_LIMIT:-500}
+CHUNK_OVERLAP=${CHUNK_OVERLAP:-0.1}
 curl -sf -XPUT "$OS/_ingest/pipeline/doc-attachment-knn" -H "$H" -d "{
-  \"description\": \"PDF/Office文書の本文抽出とベクトル化\",
+  \"description\": \"PDF/Office文書の本文抽出・チャンク分割・ベクトル化\",
   \"processors\": [
     {
       \"attachment\": {
@@ -79,9 +89,21 @@ curl -sf -XPUT "$OS/_ingest/pipeline/doc-attachment-knn" -H "$H" -d "{
       }
     },
     {
+      \"text_chunking\": {
+        \"algorithm\": {
+          \"fixed_char_length\": {
+            \"char_limit\": $CHUNK_CHAR_LIMIT,
+            \"overlap_rate\": $CHUNK_OVERLAP,
+            \"max_chunk_limit\": 2000
+          }
+        },
+        \"field_map\": { \"_content_tmp\": \"chunks\" }
+      }
+    },
+    {
       \"text_embedding\": {
         \"model_id\": \"$MODEL_ID\",
-        \"field_map\": { \"_content_tmp\": \"content_embedding\" }
+        \"field_map\": { \"chunks\": \"chunks_embedding\" }
       }
     },
     {
@@ -89,7 +111,7 @@ curl -sf -XPUT "$OS/_ingest/pipeline/doc-attachment-knn" -H "$H" -d "{
     }
   ]
 }" >/dev/null
-echo "Pipeline 作成完了 (doc-attachment-knn, model_id: $MODEL_ID)"
+echo "Pipeline 作成完了 (doc-attachment-knn, model_id: $MODEL_ID, チャンク ${CHUNK_CHAR_LIMIT} 文字 / 重複 ${CHUNK_OVERLAP})"
 
 # ---- 2. インデックス作成（作り直し）--------------------------------------------
 echo "=== [2/4] インデックス作成: $INDEX ==="
@@ -117,13 +139,19 @@ curl -sf -XPUT "$OS/$INDEX" -H "$H" -d '{
   "mappings": {
     "properties": {
       "filename": { "type": "keyword" },
-      "content_embedding": {
-        "type": "knn_vector",
-        "dimension": 384,
-        "method": {
-          "name": "hnsw",
-          "space_type": "l2",
-          "engine": "lucene"
+      "chunks": { "type": "text", "index": false },
+      "chunks_embedding": {
+        "type": "nested",
+        "properties": {
+          "knn": {
+            "type": "knn_vector",
+            "dimension": 384,
+            "method": {
+              "name": "hnsw",
+              "space_type": "cosinesimil",
+              "engine": "lucene"
+            }
+          }
         }
       },
       "attachment": {
@@ -163,4 +191,5 @@ echo "  mcp__opensearch-readonly__neural_search"
 echo "    index: $INDEX"
 echo "    query_text: \"検索したい内容\""
 echo "    model_id: $MODEL_ID"
-echo "    vector_field: content_embedding"
+echo "    vector_field: chunks_embedding.knn"
+echo "    nested_path: chunks_embedding"
